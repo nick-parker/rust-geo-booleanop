@@ -30,16 +30,16 @@ where
     let interval_end_x = a_end_x.min(b_end_x);
     let interval_end_y = a_end_y.min(b_end_y);
     if interval_start_x <= interval_end_x && interval_start_y <= interval_end_y {
-        Some(Rect {
-            min: Coordinate {
+        Some(Rect::new(
+            Coordinate {
                 x: interval_start_x,
                 y: interval_start_y,
             },
-            max: Coordinate {
+            Coordinate {
                 x: interval_end_x,
                 y: interval_end_y,
-            },
-        })
+            }
+        ))
     } else {
         None
     }
@@ -51,17 +51,17 @@ where
     F: Float,
 {
     Coordinate {
-        x: if p.x < bb.min.x {
-            bb.min.x
-        } else if p.x > bb.max.x {
-            bb.max.x
+        x: if p.x < bb.min().x {
+            bb.min().x
+        } else if p.x > bb.max().x {
+            bb.max().x
         } else {
             p.x
         },
-        y: if p.y < bb.min.y {
-            bb.min.y
-        } else if p.y > bb.max.y {
-            bb.max.y
+        y: if p.y < bb.min().y {
+            bb.min().y
+        } else if p.y > bb.max().y {
+            bb.max().y
         } else {
             p.y
         },

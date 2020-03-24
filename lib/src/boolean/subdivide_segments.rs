@@ -23,7 +23,7 @@ where
 {
     let mut sweep_line = SplaySet::<Rc<SweepEvent<F>>, _>::new(compare_segments);
     let mut sorted_events: Vec<Rc<SweepEvent<F>>> = Vec::new();
-    let rightbound = sbbox.max.x.min(cbbox.max.x);
+    let rightbound = sbbox.max().x.min(cbbox.max().x);
 
     while let Some(event) = event_queue.pop() {
         #[cfg(feature = "debug-booleanop")]
@@ -33,7 +33,7 @@ where
         sorted_events.push(event.clone());
 
         if operation == Operation::Intersection && event.point.x > rightbound
-            || operation == Operation::Difference && event.point.x > sbbox.max.x
+            || operation == Operation::Difference && event.point.x > sbbox.max().x
         {
             break;
         }

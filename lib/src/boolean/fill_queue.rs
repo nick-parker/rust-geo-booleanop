@@ -1,5 +1,5 @@
 use super::helper::Float;
-use geo_types::{LineString, Polygon, Rect};
+use geo_types::{LineString, Polygon, Coordinate};
 use std::collections::BinaryHeap;
 use std::rc::{Rc, Weak};
 
@@ -9,8 +9,10 @@ use super::Operation;
 pub fn fill_queue<F>(
     subject: &[Polygon<F>],
     clipping: &[Polygon<F>],
-    sbbox: &mut Rect<F>,
-    cbbox: &mut Rect<F>,
+    sbbox_min: &mut Coordinate<F>,
+    sbbox_max: &mut Coordinate<F>,
+    cbbox_min: &mut Coordinate<F>,
+    cbbox_max: &mut Coordinate<F>,
     operation: Operation,
 ) -> BinaryHeap<Rc<SweepEvent<F>>>
 where
@@ -21,9 +23,9 @@ where
 
     for polygon in subject {
         contour_id += 1;
-        process_polygon(&polygon.exterior(), true, contour_id, &mut event_queue, sbbox, true);
+        process_polygon(&polygon.exterior(), true, contour_id, &mut event_queue, sbbox_min, sbbox_max, true);
         for interior in polygon.interiors() {
-            process_polygon(interior, true, contour_id, &mut event_queue, sbbox, false);
+            process_polygon(interior, true, contour_id, &mut event_queue, sbbox_min, sbbox_max, false);
         }
     }
 
@@ -37,11 +39,11 @@ where
             false,
             contour_id,
             &mut event_queue,
-            cbbox,
+            cbbox_min, cbbox_max,
             exterior,
         );
         for interior in polygon.interiors() {
-            process_polygon(interior, false, contour_id, &mut event_queue, cbbox, false);
+            process_polygon(interior, false, contour_id, &mut event_queue, cbbox_min, cbbox_max, false);
         }
     }
 
@@ -53,7 +55,7 @@ fn process_polygon<F>(
     is_subject: bool,
     contour_id: u32,
     event_queue: &mut BinaryHeap<Rc<SweepEvent<F>>>,
-    bbox: &mut Rect<F>,
+    bbox_min: &mut Coordinate<F>, bbox_max: &mut Coordinate<F>,
     is_exterior_ring: bool,
 ) where
     F: Float,
@@ -79,11 +81,10 @@ fn process_polygon<F>(
         } else {
             e1.set_left(true)
         }
-
-        bbox.min.x = bbox.min.x.min(line.start.x);
-        bbox.min.y = bbox.min.y.min(line.start.y);
-        bbox.max.x = bbox.max.x.max(line.start.x);
-        bbox.max.y = bbox.max.y.max(line.start.y);
+        bbox_min.x = bbox_min.x.min(line.start.x);
+        bbox_min.y = bbox_min.y.min(line.start.y);
+        bbox_max.x = bbox_max.x.max(line.start.x);
+        bbox_max.y = bbox_max.y.max(line.start.y);
 
         event_queue.push(e1);
         event_queue.push(e2);

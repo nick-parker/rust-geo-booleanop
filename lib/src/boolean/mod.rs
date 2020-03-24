@@ -89,24 +89,29 @@ fn boolean_operation<F>(subject: &[Polygon<F>], clipping: &[Polygon<F>], operati
 where
     F: Float,
 {
-    let mut sbbox = Rect {
-        min: Coordinate {
-            x: F::infinity(),
-            y: F::infinity(),
-        },
-        max: Coordinate {
-            x: F::neg_infinity(),
-            y: F::neg_infinity(),
-        },
+    let mut sbbox_min = Coordinate {
+        x: F::infinity(),
+        y: F::infinity(),
     };
-    let mut cbbox = sbbox;
+    let mut sbbox_max = Coordinate {
+        x: F::neg_infinity(),
+        y: F::neg_infinity(),
+    };
+    let mut cbbox_min = sbbox_min;
+    let mut cbbox_max = sbbox_max;
 
-    let mut event_queue = fill_queue(subject, clipping, &mut sbbox, &mut cbbox, operation);
+    let mut event_queue = fill_queue(subject, clipping,
+        &mut sbbox_min, &mut sbbox_max,
+        &mut cbbox_min, &mut cbbox_max,
+        operation);
 
-    if sbbox.min.x > cbbox.max.x || cbbox.min.x > sbbox.max.x || sbbox.min.y > cbbox.max.y || cbbox.min.y > sbbox.max.y
+    if sbbox_min.x > cbbox_max.x || cbbox_min.x > sbbox_max.x || sbbox_min.y > cbbox_max.y || cbbox_min.y > sbbox_max.y
     {
         return trivial_result(subject, clipping, operation);
     }
+
+    let sbbox = Rect::new(sbbox_min, sbbox_max);
+    let cbbox = Rect::new(cbbox_min, cbbox_max);
 
     let sorted_events = subdivide(&mut event_queue, &sbbox, &cbbox, operation);
 
