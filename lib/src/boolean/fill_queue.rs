@@ -1,10 +1,16 @@
 use super::helper::Float;
-use geo_types::{LineString, Polygon, Rect};
+use geo_types::{LineString, Polygon, Rect, Coordinate, CoordinateType};
 use std::collections::BinaryHeap;
 use std::rc::{Rc, Weak};
 
 use super::sweep_event::SweepEvent;
 use super::Operation;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+struct MaybeValidRect<T: CoordinateType> {
+    pub min: Coordinate<T>,
+    pub max: Coordinate<T>,
+}
 
 pub fn fill_queue<F>(
     subject: &[Polygon<F>],
@@ -19,11 +25,24 @@ where
     let mut event_queue: BinaryHeap<Rc<SweepEvent<F>>> = BinaryHeap::new();
     let mut contour_id = 0u32;
 
+    let mut tempsbbox = MaybeValidRect{
+        min: Coordinate{
+            x: F::infinity(),
+            y: F::infinity()
+        },
+        max: Coordinate{
+            x: F::infinity(),
+            y: F::infinity()
+        }
+    };
+
+    let mut tempcbbox = tempsbbox;
+
     for polygon in subject {
         contour_id += 1;
-        process_polygon(&polygon.exterior(), true, contour_id, &mut event_queue, sbbox, true);
+        process_polygon(&polygon.exterior(), true, contour_id, &mut event_queue, &mut tempsbbox, true);
         for interior in polygon.interiors() {
-            process_polygon(interior, true, contour_id, &mut event_queue, sbbox, false);
+            process_polygon(interior, true, contour_id, &mut event_queue, &mut tempsbbox, false);
         }
     }
 
@@ -37,13 +56,17 @@ where
             false,
             contour_id,
             &mut event_queue,
-            cbbox,
+            &mut tempcbbox,
             exterior,
         );
         for interior in polygon.interiors() {
-            process_polygon(interior, false, contour_id, &mut event_queue, cbbox, false);
+            process_polygon(interior, false, contour_id, &mut event_queue, &mut tempcbbox, false);
         }
     }
+    cbbox.set_min(tempcbbox.min);
+    cbbox.set_max(tempcbbox.max);
+    sbbox.set_min(tempsbbox.min);
+    sbbox.set_max(tempsbbox.max);
 
     event_queue
 }
@@ -53,7 +76,7 @@ fn process_polygon<F>(
     is_subject: bool,
     contour_id: u32,
     event_queue: &mut BinaryHeap<Rc<SweepEvent<F>>>,
-    bbox: &mut Rect<F>,
+    bbox: &mut MaybeValidRect<F>,
     is_exterior_ring: bool,
 ) where
     F: Float,

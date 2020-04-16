@@ -30,16 +30,16 @@ where
     let interval_end_x = a_end_x.min(b_end_x);
     let interval_end_y = a_end_y.min(b_end_y);
     if interval_start_x <= interval_end_x && interval_start_y <= interval_end_y {
-        Some(Rect {
-            min: Coordinate {
+        Some(Rect::new(
+            Coordinate {
                 x: interval_start_x,
                 y: interval_start_y,
             },
-            max: Coordinate {
+            Coordinate {
                 x: interval_end_x,
                 y: interval_end_y,
             },
-        })
+        ))
     } else {
         None
     }
@@ -51,17 +51,17 @@ where
     F: Float,
 {
     Coordinate {
-        x: if p.x < bb.min.x {
-            bb.min.x
-        } else if p.x > bb.max.x {
-            bb.max.x
+        x: if p.x < bb.min().x {
+            bb.min().x
+        } else if p.x > bb.max().x {
+            bb.max().x
         } else {
             p.x
         },
-        y: if p.y < bb.min.y {
-            bb.min.y
-        } else if p.y > bb.max.y {
-            bb.max.y
+        y: if p.y < bb.min().y {
+            bb.min().y
+        } else if p.y > bb.max().y {
+            bb.max().y
         } else {
             p.y
         },
@@ -199,24 +199,24 @@ mod test {
     use super::*;
 
     fn rect(min: Coordinate<f64>, max: Coordinate<f64>) -> Rect<f64> {
-        Rect { min, max }
+        Rect::new(min, max)
     }
 
     #[test]
     fn test_get_intersection_bounding_box() {
         assert_eq!(
             get_intersection_bounding_box(xy(0, 0), xy(2, 2), xy(1, 1), xy(3, 3)),
-            Some(Rect {
-                min: xy(1, 1),
-                max: xy(2, 2)
-            }),
+            Some(Rect::new(
+                xy(1, 1),
+                xy(2, 2)
+            )),
         );
         assert_eq!(
             get_intersection_bounding_box(xy(-1, 0), xy(1, 0), xy(0, -1), xy(0, 1)),
-            Some(Rect {
-                min: xy(0, 0),
-                max: xy(0, 0)
-            }),
+            Some(Rect::new(
+                xy(0, 0),
+                xy(0, 0)
+            )),
         );
         assert_eq!(
             get_intersection_bounding_box(xy(0, 0), xy(1, 1), xy(2, 0), xy(3, 1)),

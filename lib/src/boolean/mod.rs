@@ -89,21 +89,13 @@ fn boolean_operation<F>(subject: &[Polygon<F>], clipping: &[Polygon<F>], operati
 where
     F: Float,
 {
-    let mut sbbox = Rect {
-        min: Coordinate {
-            x: F::infinity(),
-            y: F::infinity(),
-        },
-        max: Coordinate {
-            x: F::neg_infinity(),
-            y: F::neg_infinity(),
-        },
-    };
+    let zero = F::from(0).unwrap();
+    let mut sbbox = Rect::new(Coordinate{x: zero, y: zero}, Coordinate{x: zero, y: zero});
     let mut cbbox = sbbox;
 
     let mut event_queue = fill_queue(subject, clipping, &mut sbbox, &mut cbbox, operation);
 
-    if sbbox.min.x > cbbox.max.x || cbbox.min.x > sbbox.max.x || sbbox.min.y > cbbox.max.y || cbbox.min.y > sbbox.max.y
+    if sbbox.min().x > cbbox.max().x || cbbox.min().x > sbbox.max().x || sbbox.min().y > cbbox.max().y || cbbox.min().y > sbbox.max().y
     {
         return trivial_result(subject, clipping, operation);
     }
