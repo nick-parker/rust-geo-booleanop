@@ -1,6 +1,5 @@
 use super::helper::Float;
 use geo_types::{Coordinate, Rect};
-use std::cmp;
 use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -25,7 +24,7 @@ fn get_intersection_bounding_box<F>(
     a2: Coordinate<F>,
     b1: Coordinate<F>,
     b2: Coordinate<F>,
-) -> (Option<Rect<F>>, (Coordinate<F>, Coordinate<F>, Coordinate<F>, Coordinate<F>))
+) -> (Option<Rect<F>>, (Coordinate<F>, Coordinate<F>, Coordinate<F>, Coordinate<F>), bool)
 where
     F: Float,
 {
@@ -128,10 +127,10 @@ where
             (true, false, true) => (b1, b2, a2, a1),
             (true, true, false) => (a2, a1, b2, b1),
             (true, true, true) => (b2, b1, a2, a1) 
-        })
+        }, flip_a || (flip_lines && flip_b))
     } else {
         // Don't bother shuffling with no intersection to find.
-        (None, (a1, a2, b1, b2))
+        (None, (a1, a2, b1, b2), false)
     }
 }
 
@@ -167,14 +166,18 @@ pub fn intersection<F>(
 where
     F: Float,
 {
-    let (bb, (a1, a2, b1, b2)) = get_intersection_bounding_box(a1_in, a2_in, b1_in, b2_in);
+    let (bb, (a1, a2, b1, b2), flip) = get_intersection_bounding_box(a1_in, a2_in, b1_in, b2_in);
     if let Some(bb) = bb {
         let inter = intersection_impl(a1, a2, b1, b2);
         match inter {
             LineIntersection::None => LineIntersection::None,
             LineIntersection::Point(p) => LineIntersection::Point(constrain_to_bounding_box(p, bb)),
             LineIntersection::Overlap(p1, p2) => {
-                LineIntersection::Overlap(constrain_to_bounding_box(p1, bb), constrain_to_bounding_box(p2, bb))
+                if flip {
+                    LineIntersection::Overlap(constrain_to_bounding_box(p2, bb), constrain_to_bounding_box(p1, bb))
+                } else {
+                    LineIntersection::Overlap(constrain_to_bounding_box(p1, bb), constrain_to_bounding_box(p2, bb))
+                }
             }
         }
     } else {
@@ -398,7 +401,7 @@ mod test {
         );
         assert_eq!(
             intersection(xy(1, 1), xy(0, 0), xy(0, 0), xy(1, 1)),
-            LineIntersection::Overlap(xy(0, 0), xy(1, 1))
+            LineIntersection::Overlap(xy(1, 1), xy(0, 0))
         );
 
         assert_eq!(
@@ -454,8 +457,14 @@ mod test {
             let a2 = random_coord();
             let b1 = random_coord();
             let b2 = random_coord();
-            assert_eq!(intersection(a1, a2, b1, b2),
-                       intersection(b1, b2, a1, a2))
+            let p1234 = intersection(a1, a2, b1, b2); 
+            assert_eq!(p1234, intersection(a2, a1, b1, b2));
+            assert_eq!(p1234, intersection(a1, a2, b2, b1));
+            assert_eq!(p1234, intersection(a2, a1, b2, b1));
+            assert_eq!(p1234, intersection(b1, b2, a1, a2));
+            assert_eq!(p1234, intersection(b1, b2, a2, a1));
+            assert_eq!(p1234, intersection(b2, b1, a1, a2));
+            assert_eq!(p1234, intersection(b2, b1, a2, a1));
         }
     }
 }
