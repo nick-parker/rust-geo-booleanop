@@ -1,6 +1,6 @@
-use super::helper::Float;
-use super::helper::BoundingBox;
-use geo_types::{Coordinate};
+use super::helper::{Float, BoundingBox};
+use geo_types::Coordinate;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LineIntersection<F>
@@ -12,26 +12,104 @@ where
     Overlap(Coordinate<F>, Coordinate<F>),
 }
 
+/// Calculate the AABB which a possible intersection must fall in, IE the intersection of the AABBs for segments a and b.
+/// Also return a1, a2, b1, b2 reordered such that a1_out and b1_out point +X, or +Y if they have no X component,
+/// a1_out.x <= b1_out.x, and if a1_out.x == b1_out.x then a1_out.y <= b1_out.y.
+/// This reordering ensures floating point errors propagate in the same way for intersection(a1, a2, b1, b2),
+/// intersection(b1, b2, a1, a2), and all other permutations of the arguments which represent the same pair of
+/// actual input segments.
 #[inline]
 fn get_intersection_bounding_box<F>(
     a1: Coordinate<F>,
     a2: Coordinate<F>,
     b1: Coordinate<F>,
     b2: Coordinate<F>,
-) -> Option<BoundingBox<F>>
+) -> (Option<BoundingBox<F>>, (Coordinate<F>, Coordinate<F>, Coordinate<F>, Coordinate<F>), bool)
 where
     F: Float,
 {
-    let (a_start_x, a_end_x) = if a1.x < a2.x { (a1.x, a2.x) } else { (a2.x, a1.x) };
-    let (a_start_y, a_end_y) = if a1.y < a2.y { (a1.y, a2.y) } else { (a2.y, a1.y) };
-    let (b_start_x, b_end_x) = if b1.x < b2.x { (b1.x, b2.x) } else { (b2.x, b1.x) };
-    let (b_start_y, b_end_y) = if b1.y < b2.y { (b1.y, b2.y) } else { (b2.y, b1.y) };
-    let interval_start_x = a_start_x.max(b_start_x);
-    let interval_start_y = a_start_y.max(b_start_y);
+    let mut flip_a = false;
+    let mut maybe_flip_a = false;
+    let mut flip_b = false;
+    let mut maybe_flip_b = false;
+    let mut flip_lines = false;
+    let mut maybe_flip_lines = false;
+    let (a_start_x, a_end_x) = match a1.x.partial_cmp(&a2.x) {
+        Some(Ordering::Less) => (a1.x, a2.x),
+        Some(Ordering::Greater) => {
+            flip_a = true;
+            (a2.x, a1.x)
+        },
+        Some(Ordering::Equal) => {
+            maybe_flip_a = true;
+            (a1.x, a2.x)
+        }
+        None => (a1.x, a2.x)
+    };
+    // let (a_start_x, a_end_x) = if a1.x < a2.x { (a1.x, a2.x) } else { (a2.x, a1.x) };
+    let (b_start_x, b_end_x) = match b1.x.partial_cmp(&b2.x) {
+        Some(Ordering::Less) => (b1.x, b2.x),
+        Some(Ordering::Greater) => {
+            flip_b = true;
+            (b2.x, b1.x)
+        },
+        Some(Ordering::Equal) => {
+            maybe_flip_b = true;
+            (b1.x, b2.x)
+        }
+        None => (b1.x, b2.x)
+    };
+    // let (b_start_x, b_end_x) = if b1.x < b2.x { (b1.x, b2.x) } else { (b2.x, b1.x) };
+    let (a_start_y, a_end_y) = match a1.y.partial_cmp(&a2.y) {
+        Some(Ordering::Less) => (a1.y, a2.y),
+        Some(Ordering::Greater) => {
+            // Flip if X already required it, or if X was equal.
+            flip_a = flip_a || maybe_flip_a;
+            (a2.y, a1.y)
+        },
+        Some(Ordering::Equal) => {
+            (a1.y, a2.y)
+        }
+        None => (a1.y, a2.y)
+    };
+    // let (a_start_y, a_end_y) = if a1.y < a2.y { (a1.y, a2.y) } else { (a2.y, a1.y) };
+    let (b_start_y, b_end_y) = match b1.y.partial_cmp(&b2.y) {
+        Some(Ordering::Less) => (b1.y, b2.y),
+        Some(Ordering::Greater) => {
+            // Flip if X already required it, or if X was equal.
+            flip_b = flip_b || maybe_flip_b;
+            (b2.y, b1.y)
+        },
+        Some(Ordering::Equal) => {
+            (b1.y, b2.y)
+        }
+        None => (b1.y, b2.y)
+    };
+    // let (b_start_y, b_end_y) = if b1.y < b2.y { (b1.y, b2.y) } else { (b2.y, b1.y) };
+    let interval_start_x = match a_start_x.partial_cmp(&b_start_x) {
+        Some(Ordering::Less) => b_start_x,
+        Some(Ordering::Greater) => {
+            flip_lines = true;
+            a_start_x
+        },
+        Some(Ordering::Equal) => {
+            maybe_flip_lines = true;
+            a_start_x
+        }
+        None => a_start_x
+    };
+    // let interval_start_x = a_start_x.max(b_start_x);
+    let interval_start_y = if a_start_y < b_start_y {
+        b_start_y
+    } else {
+        flip_lines = flip_lines || maybe_flip_lines;
+        a_start_y
+    };
+    // let interval_start_y = a_start_y.max(b_start_y);
     let interval_end_x = a_end_x.min(b_end_x);
     let interval_end_y = a_end_y.min(b_end_y);
     if interval_start_x <= interval_end_x && interval_start_y <= interval_end_y {
-        Some(BoundingBox {
+        (Some(BoundingBox {
             min: Coordinate {
                 x: interval_start_x,
                 y: interval_start_y,
@@ -40,9 +118,19 @@ where
                 x: interval_end_x,
                 y: interval_end_y,
             },
-        })
+        }), match (flip_a, flip_b, flip_lines) {
+            (false, false, false) => (a1, a2, b1, b2),
+            (false, false, true) => (b1, b2, a1, a2),
+            (false, true, false) => (a1, a2, b2, b1),
+            (false, true, true) => (b2, b1, a1, a2),
+            (true, false, false) => (a2, a1, b1, b2),
+            (true, false, true) => (b1, b2, a2, a1),
+            (true, true, false) => (a2, a1, b2, b1),
+            (true, true, true) => (b2, b1, a2, a1) 
+        }, flip_a || (flip_lines && flip_b))
     } else {
-        None
+        // Don't bother shuffling with no intersection to find.
+        (None, (a1, a2, b1, b2), false)
     }
 }
 
@@ -70,22 +158,26 @@ where
 }
 
 pub fn intersection<F>(
-    a1: Coordinate<F>,
-    a2: Coordinate<F>,
-    b1: Coordinate<F>,
-    b2: Coordinate<F>,
+    a1_in: Coordinate<F>,
+    a2_in: Coordinate<F>,
+    b1_in: Coordinate<F>,
+    b2_in: Coordinate<F>,
 ) -> LineIntersection<F>
 where
     F: Float,
 {
-    let bb = get_intersection_bounding_box(a1, a2, b1, b2);
+    let (bb, (a1, a2, b1, b2), flip) = get_intersection_bounding_box(a1_in, a2_in, b1_in, b2_in);
     if let Some(bb) = bb {
         let inter = intersection_impl(a1, a2, b1, b2);
         match inter {
             LineIntersection::None => LineIntersection::None,
             LineIntersection::Point(p) => LineIntersection::Point(constrain_to_bounding_box(p, bb)),
             LineIntersection::Overlap(p1, p2) => {
-                LineIntersection::Overlap(constrain_to_bounding_box(p1, bb), constrain_to_bounding_box(p2, bb))
+                if flip {
+                    LineIntersection::Overlap(constrain_to_bounding_box(p2, bb), constrain_to_bounding_box(p1, bb))
+                } else {
+                    LineIntersection::Overlap(constrain_to_bounding_box(p1, bb), constrain_to_bounding_box(p2, bb))
+                }
             }
         }
     } else {
@@ -206,33 +298,33 @@ mod test {
     #[test]
     fn test_get_intersection_bounding_box() {
         assert_eq!(
-            get_intersection_bounding_box(xy(0, 0), xy(2, 2), xy(1, 1), xy(3, 3)),
+            get_intersection_bounding_box(xy(0, 0), xy(2, 2), xy(1, 1), xy(3, 3)).0,
             Some(BoundingBox {
                 min: xy(1, 1),
                 max: xy(2, 2)
             }),
         );
         assert_eq!(
-            get_intersection_bounding_box(xy(-1, 0), xy(1, 0), xy(0, -1), xy(0, 1)),
+            get_intersection_bounding_box(xy(-1, 0), xy(1, 0), xy(0, -1), xy(0, 1)).0,
             Some(BoundingBox {
                 min: xy(0, 0),
                 max: xy(0, 0)
             }),
         );
         assert_eq!(
-            get_intersection_bounding_box(xy(0, 0), xy(1, 1), xy(2, 0), xy(3, 1)),
+            get_intersection_bounding_box(xy(0, 0), xy(1, 1), xy(2, 0), xy(3, 1)).0,
             None,
         );
         assert_eq!(
-            get_intersection_bounding_box(xy(3, 0), xy(2, 1), xy(1, 0), xy(0, 1)),
+            get_intersection_bounding_box(xy(3, 0), xy(2, 1), xy(1, 0), xy(0, 1)).0,
             None,
         );
         assert_eq!(
-            get_intersection_bounding_box(xy(0, 0), xy(1, 1), xy(0, 2), xy(1, 3)),
+            get_intersection_bounding_box(xy(0, 0), xy(1, 1), xy(0, 2), xy(1, 3)).0,
             None,
         );
         assert_eq!(
-            get_intersection_bounding_box(xy(0, 3), xy(1, 2), xy(0, 1), xy(1, 0)),
+            get_intersection_bounding_box(xy(0, 3), xy(1, 2), xy(0, 1), xy(1, 0)).0,
             None,
         );
     }
@@ -346,5 +438,33 @@ mod test {
             intersection(xy(0, 0), xy(1, 0), xy(1, -1), xy(2, 1)),
             LineIntersection::None
         );
+    }
+
+    extern crate rand;
+    use rand::Rng;
+
+    fn random_coord() -> Coordinate<f32> {
+        let mut rng = rand::thread_rng();
+        let x: f32 = rng.gen();
+        let y: f32 = rng.gen();
+        return Coordinate{x: x, y: y}
+    }
+
+    #[test]
+    fn test_intersection_order() {
+        for _ in 0..1000 {
+            let a1 = random_coord();
+            let a2 = random_coord();
+            let b1 = random_coord();
+            let b2 = random_coord();
+            let p1234 = intersection(a1, a2, b1, b2); 
+            assert_eq!(p1234, intersection(a2, a1, b1, b2));
+            assert_eq!(p1234, intersection(a1, a2, b2, b1));
+            assert_eq!(p1234, intersection(a2, a1, b2, b1));
+            assert_eq!(p1234, intersection(b1, b2, a1, a2));
+            assert_eq!(p1234, intersection(b1, b2, a2, a1));
+            assert_eq!(p1234, intersection(b2, b1, a1, a2));
+            assert_eq!(p1234, intersection(b2, b1, a2, a1));
+        }
     }
 }
