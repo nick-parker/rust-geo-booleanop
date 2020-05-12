@@ -12,6 +12,40 @@ where
     Overlap(Coordinate<F>, Coordinate<F>),
 }
 
+#[inline]
+fn _old_get_intersection_bounding_box<F>(
+    a1: Coordinate<F>,
+    a2: Coordinate<F>,
+    b1: Coordinate<F>,
+    b2: Coordinate<F>,
+) -> (Option<BoundingBox<F>>, (Coordinate<F>, Coordinate<F>, Coordinate<F>, Coordinate<F>), bool)
+where
+    F: Float,
+{
+    let (a_start_x, a_end_x) = if a1.x < a2.x { (a1.x, a2.x) } else { (a2.x, a1.x) };
+    let (a_start_y, a_end_y) = if a1.y < a2.y { (a1.y, a2.y) } else { (a2.y, a1.y) };
+    let (b_start_x, b_end_x) = if b1.x < b2.x { (b1.x, b2.x) } else { (b2.x, b1.x) };
+    let (b_start_y, b_end_y) = if b1.y < b2.y { (b1.y, b2.y) } else { (b2.y, b1.y) };
+    let interval_start_x = a_start_x.max(b_start_x);
+    let interval_start_y = a_start_y.max(b_start_y);
+    let interval_end_x = a_end_x.min(b_end_x);
+    let interval_end_y = a_end_y.min(b_end_y);
+    if interval_start_x <= interval_end_x && interval_start_y <= interval_end_y {
+        (Some(BoundingBox {
+            min: Coordinate {
+                x: interval_start_x,
+                y: interval_start_y,
+            },
+            max: Coordinate {
+                x: interval_end_x,
+                y: interval_end_y,
+            },
+        }), (a1, a2, b1, b2), false)
+    } else {
+        (None, (a1, a2, b1, b2), false)
+    }
+}
+
 /// Calculate the AABB which a possible intersection must fall in, IE the intersection of the AABBs for segments a and b.
 /// Also return a1, a2, b1, b2 reordered such that a1_out and b1_out point +X, or +Y if they have no X component,
 /// a1_out.x <= b1_out.x, and if a1_out.x == b1_out.x then a1_out.y <= b1_out.y.
@@ -166,6 +200,7 @@ pub fn intersection<F>(
 where
     F: Float,
 {
+    // let (bb, (a1, a2, b1, b2), flip) = _old_get_intersection_bounding_box(a1_in, a2_in, b1_in, b2_in);
     let (bb, (a1, a2, b1, b2), flip) = get_intersection_bounding_box(a1_in, a2_in, b1_in, b2_in);
     if let Some(bb) = bb {
         let inter = intersection_impl(a1, a2, b1, b2);
@@ -451,13 +486,12 @@ mod test {
     }
 
     #[test]
-    fn test_intersection_order() {
-        for _ in 0..1000 {
-            let a1 = random_coord();
-            let a2 = random_coord();
-            let b1 = random_coord();
-            let b2 = random_coord();
-            let p1234 = intersection(a1, a2, b1, b2); 
+    fn test_intersection_order_same_value() {
+        fn check_all_combinations(a1: Coordinate<f32>,
+                                  a2: Coordinate<f32>,
+                                  b1: Coordinate<f32>,
+                                  b2: Coordinate<f32>) {
+            let p1234 = intersection(a1, a2, b1, b2);
             assert_eq!(p1234, intersection(a2, a1, b1, b2));
             assert_eq!(p1234, intersection(a1, a2, b2, b1));
             assert_eq!(p1234, intersection(a2, a1, b2, b1));
@@ -466,5 +500,63 @@ mod test {
             assert_eq!(p1234, intersection(b2, b1, a1, a2));
             assert_eq!(p1234, intersection(b2, b1, a2, a1));
         }
+
+        for _ in 0..100000 {
+            let a1 = random_coord();
+            let a2 = random_coord();
+            let b1 = random_coord();
+            let b2 = random_coord();
+            let bm = Coordinate{x: (b1.x + b2.x)/2., y: (b1.y + b2.y)/2.};
+            check_all_combinations(a1, a2, b1, b2);
+            check_all_combinations(a1, a2, a1, b2);
+            check_all_combinations(a1, bm, b1, b2);
+            }
+    }
+
+    #[test]
+    fn test_intersection_order_same_variant() {
+
+        fn check_same_variant(i1: LineIntersection<f32>, i2: LineIntersection<f32>){
+            use LineIntersection::*;
+            let same = match (i1, i2) {
+                (LineIntersection::None, LineIntersection::None) => true,
+                (Point(_a), Point(_b)) => true,
+                (Overlap(_a, _b), Overlap(_c, _d)) => true,
+                _ => false
+            };
+            assert!(same, "{:?} differs from {:?} with coords:", i1, i2);
+            // if !same {
+            //     println!("{:?} differs from {:?} with coords:", i1, i2);
+            // }
+            // same
+        }
+
+        fn check_all_combinations(a1: Coordinate<f32>,
+                                  a2: Coordinate<f32>,
+                                  b1: Coordinate<f32>,
+                                  b2: Coordinate<f32>) {
+            let p1234 = intersection(a1, a2, b1, b2);
+            check_same_variant(p1234, intersection(a2, a1, b1, b2));
+            check_same_variant(p1234, intersection(a1, a2, b2, b1));
+            check_same_variant(p1234, intersection(a2, a1, b2, b1));
+            check_same_variant(p1234, intersection(b1, b2, a1, a2));
+            check_same_variant(p1234, intersection(b1, b2, a2, a1));
+            check_same_variant(p1234, intersection(b2, b1, a1, a2));
+            check_same_variant(p1234, intersection(b2, b1, a2, a1));
+        }
+
+        for _ in 0..100000 {
+            let a1 = random_coord();
+            let a2 = random_coord();
+            let b1 = random_coord();
+            let b2 = random_coord();
+            let bm = Coordinate{x: (b1.x + b2.x)/2., y: (b1.y + b2.y)/2.};
+            // Shared endpoint
+            check_all_combinations(a1, a2, a1, b2);
+            // Endpoint of one in interior of other
+            check_all_combinations(a1, bm, b1, b2);
+            // Colinear shared endpoint
+            check_all_combinations(b1, bm, bm, b2);
+            }
     }
 }
