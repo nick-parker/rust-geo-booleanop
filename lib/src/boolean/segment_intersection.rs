@@ -452,19 +452,40 @@ mod test {
 
     #[test]
     fn test_intersection_order() {
-        for _ in 0..1000 {
+
+        fn check_same_variant(i1: LineIntersection<f32>, i2: LineIntersection<f32>) -> bool{
+            use LineIntersection::*;
+            match (i1, i2) {
+                (LineIntersection::None, LineIntersection::None) => true,
+                (Point(_a), Point(_b)) => true,
+                (Overlap(_a, _b), Overlap(_c, _d)) => true,
+                _ => false
+            }
+        }
+
+        fn check_all_combinations(a1: Coordinate<f32>,
+                                  a2: Coordinate<f32>,
+                                  b1: Coordinate<f32>, b2:
+                                  Coordinate<f32>) {
+            let p1234 = intersection(a1, a2, b1, b2);
+            assert!(check_same_variant(p1234, intersection(a2, a1, b1, b2)));
+            assert!(check_same_variant(p1234, intersection(a1, a2, b2, b1)));
+            assert!(check_same_variant(p1234, intersection(a2, a1, b2, b1)));
+            assert!(check_same_variant(p1234, intersection(b1, b2, a1, a2)));
+            assert!(check_same_variant(p1234, intersection(b1, b2, a2, a1)));
+            assert!(check_same_variant(p1234, intersection(b2, b1, a1, a2)));
+            assert!(check_same_variant(p1234, intersection(b2, b1, a2, a1)));
+        }
+
+        for _ in 0..1000000 {
             let a1 = random_coord();
             let a2 = random_coord();
             let b1 = random_coord();
             let b2 = random_coord();
-            let p1234 = intersection(a1, a2, b1, b2); 
-            assert_eq!(p1234, intersection(a2, a1, b1, b2));
-            assert_eq!(p1234, intersection(a1, a2, b2, b1));
-            assert_eq!(p1234, intersection(a2, a1, b2, b1));
-            assert_eq!(p1234, intersection(b1, b2, a1, a2));
-            assert_eq!(p1234, intersection(b1, b2, a2, a1));
-            assert_eq!(p1234, intersection(b2, b1, a1, a2));
-            assert_eq!(p1234, intersection(b2, b1, a2, a1));
-        }
+            let bm = Coordinate{x: (b1.x + b2.x)/2., y: (b1.y + b2.y)/2.};
+            check_all_combinations(a1, a2, b1, b2);
+            check_all_combinations(a1, a2, a1, b2);
+            check_all_combinations(a1, bm, b1, b2);
+            }
     }
 }
