@@ -3,11 +3,18 @@ use num_traits::Float as NumTraitsFloat;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::{f32, f64};
+use geo_types::{Coordinate, CoordinateType};
 
 #[link_name = "m"]
 extern "C" {
     pub fn nextafter(x: c_double, y: c_double) -> c_double;
     pub fn nextafterf(x: c_float, y: c_float) -> c_float;
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+pub struct MaybeValidRect<T: CoordinateType> {
+    pub min: Coordinate<T>,
+    pub max: Coordinate<T>,
 }
 
 pub trait Float: NumTraitsFloat + Debug + Display + NextAfter + Into<f64> {}

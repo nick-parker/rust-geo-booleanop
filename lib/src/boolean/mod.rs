@@ -13,6 +13,7 @@ pub mod subdivide_segments;
 pub mod sweep_event;
 
 pub use helper::Float;
+pub use helper::MaybeValidRect;
 
 use self::connect_edges::connect_edges;
 use self::fill_queue::fill_queue;

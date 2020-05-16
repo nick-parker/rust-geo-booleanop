@@ -74,16 +74,17 @@ fn test_possible_intersection() {
 #[test]
 fn test_on_two_polygons() {
     let (s, c) = fixture_shapes("two_shapes.geojson");
-    let mut sbbox = Rect {
-        min: Coordinate {
-            x: f64::infinity(),
-            y: f64::infinity(),
-        },
-        max: Coordinate {
-            x: f64::neg_infinity(),
-            y: f64::neg_infinity(),
-        },
-    };
+    // let mut sbbox = Rect {
+    //     min: Coordinate {
+    //         x: f64::infinity(),
+    //         y: f64::infinity(),
+    //     },
+    //     max: Coordinate {
+    //         x: f64::neg_infinity(),
+    //         y: f64::neg_infinity(),
+    //     },
+    // };
+    let mut sbbox = Rect::new(Coordinate{x: 0f64, y: 0f64}, Coordinate{x: 0f64, y: 0f64});
     let mut cbbox = sbbox;
     let mut q = fill_queue(&[s], &[c], &mut sbbox, &mut cbbox, Operation::Intersection);
 

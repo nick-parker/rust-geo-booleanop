@@ -1,16 +1,10 @@
-use super::helper::Float;
-use geo_types::{LineString, Polygon, Rect, Coordinate, CoordinateType};
+use super::helper::{ Float, MaybeValidRect};
+use geo_types::{LineString, Polygon, Rect, Coordinate};
 use std::collections::BinaryHeap;
 use std::rc::{Rc, Weak};
 
 use super::sweep_event::SweepEvent;
 use super::Operation;
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq)]
-struct MaybeValidRect<T: CoordinateType> {
-    pub min: Coordinate<T>,
-    pub max: Coordinate<T>,
-}
 
 pub fn fill_queue<F>(
     subject: &[Polygon<F>],
